@@ -247,8 +247,16 @@ PrefabInstance:
     m_TransformParent: {fileID: 1762682262}
     m_Modifications:
     - target: {fileID: -5694092435888646316, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -5694092435888646316, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_DirtyAABB
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -5694092435888646316, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_CastShadows
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: -5694092435888646316, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_AABB.m_Center.x
@@ -279,8 +287,16 @@ PrefabInstance:
       value: AvatarSample_I
       objectReference: {fileID: 0}
     - target: {fileID: 2953604236389334553, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2953604236389334553, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_DirtyAABB
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2953604236389334553, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_CastShadows
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2953604236389334553, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_AABB.m_Center.x
@@ -351,8 +367,16 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7140606858727328969, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7140606858727328969, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_DirtyAABB
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7140606858727328969, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      propertyPath: m_CastShadows
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 7140606858727328969, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       propertyPath: m_AABB.m_Center.x
@@ -385,6 +409,15 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -1728013695380148634, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
       insertIndex: -1
       addedObject: {fileID: 649559134}
+    - targetCorrespondingSourceObject: {fileID: -1728013695380148634, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 649559139}
+    - targetCorrespondingSourceObject: {fileID: -1728013695380148634, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 649559138}
+    - targetCorrespondingSourceObject: {fileID: -1728013695380148634, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 649559140}
   m_SourcePrefab: {fileID: -3956505258223990651, guid: 60d8c6ec1a0557b49988c4c334b8bcae, type: 3}
 --- !u!4 &649559132 stripped
 Transform:
@@ -411,6 +444,54 @@ MonoBehaviour:
   vrmObject: {fileID: 649559133}
   showGUI: 1
   expressionSpeed: 5
+--- !u!114 &649559138
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 649559133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48e9d7e76d2ba4a488668f934ee8a829, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VRoidAutoBlink
+  minInterval: 2
+  maxInterval: 6
+  blinkSpeed: 0.1
+  baseSmileWeight: 0.2
+  vrmObject: {fileID: 649559133}
+--- !u!114 &649559139
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 649559133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f546bb4040fbc843924ee0c1486d69e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnimatorSync
+  sourceAnimator: {fileID: 1762682265}
+  targetAnimator: {fileID: 0}
+  showDebugLog: 0
+--- !u!114 &649559140
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 649559133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caf616ee133beee4c9a0125e3a7102c4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AnimationEventReceiver
+  showDebugLog: 0
+  footstepClips: []
+  landingClip: {fileID: 0}
+  volume: 0.5
 --- !u!4 &700051398 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8338988566280778637, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
@@ -1018,6 +1099,14 @@ PrefabInstance:
       propertyPath: GroundLayers.m_Bits
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 5597113867290821413, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5597113867290821413, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:
@@ -1054,6 +1143,11 @@ MonoBehaviour:
 --- !u!4 &1762682262 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3893294197879345259, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
+  m_PrefabInstance: {fileID: 1762682258}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &1762682265 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 6982812146204527121, guid: 64dce48905ffd9b4293e595fa6941544, type: 3}
   m_PrefabInstance: {fileID: 1762682258}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &1762682266

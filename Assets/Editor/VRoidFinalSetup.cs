@@ -56,16 +56,28 @@ public class VRoidGhostParentSetup : EditorWindow
             Debug.Log("[GhostParent] VRoidをPlayerArmatureの子オブジェクトに設定");
         }
 
-        // ステップ5: ロボットのメッシュを非表示
-        HideRobotMesh(playerArmature);
+        // ステップ5: ロボットのメッシュを完全非表示
+        HideRobotMeshCompletely(playerArmature, vroidModel);
 
-        // ステップ6: Animator Controllerをコピー
+        // ステップ6: VRoidの表示を確実に有効化
+        EnsureVRoidVisible(vroidModel);
+
+        // ステップ7: Animator Controllerをコピー
         SetupVRoidAnimator(playerArmature, vroidModel);
 
-        // ステップ7: 表情コントローラーを追加
+        // ステップ8: AnimatorSyncを追加（パラメータ同期）
+        SetupAnimatorSync(playerArmature, vroidModel);
+
+        // ステップ9: AnimationEventReceiverを追加（警告解消）
+        SetupAnimationEventReceiver(vroidModel);
+
+        // ステップ10: 表情コントローラーを追加
         SetupExpressionController(vroidModel);
 
-        // ステップ8: カーソルコントローラーを追加
+        // ステップ11: 自動まばたきを追加
+        SetupAutoBlink(vroidModel);
+
+        // ステップ12: カーソルコントローラーを追加
         SetupCursorController(playerArmature);
 
         // 保存
@@ -178,91 +190,107 @@ public class VRoidGhostParentSetup : EditorWindow
         return false;
     }
 
-    // ===== ロボットメッシュ非表示 =====
-    private static void HideRobotMesh(GameObject playerArmature)
+    // ===== ロボットメッシュを完全非表示（影も消す） =====
+    private static void HideRobotMeshCompletely(GameObject playerArmature, GameObject vroidModel)
     {
-        // Geometryという名前の子オブジェクトを検索
+        int hiddenCount = 0;
+
+        // Geometryという名前の子オブジェクトを検索して無効化
         Transform geometry = playerArmature.transform.Find("Geometry");
         if (geometry != null)
         {
             geometry.gameObject.SetActive(false);
             Debug.Log("[GhostParent] Geometry を非表示にしました");
-            return;
+            hiddenCount++;
         }
 
-        // SkinnedMeshRendererを持つオブジェクトを検索して非表示
-        var renderers = playerArmature.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-        int hiddenCount = 0;
-        foreach (var renderer in renderers)
+        // 全てのRendererを検索して完全に無効化（影も消す）
+        // ただしVRoidの子は除外
+        var skinnedRenderers = playerArmature.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var renderer in skinnedRenderers)
         {
-            // VRoidのメッシュは除外
-            if (renderer.gameObject.name.ToLower().Contains("vroid") ||
-                renderer.gameObject.name.ToLower().Contains("vrm"))
-            {
-                continue;
-            }
-
-            // PlayerArmatureの直接の子孫のみ対象
-            Transform parent = renderer.transform.parent;
-            bool isPlayerChild = false;
-            while (parent != null)
-            {
-                if (parent == playerArmature.transform)
-                {
-                    isPlayerChild = true;
-                    break;
-                }
-                // VRoidの子なら除外
-                if (parent.name.ToLower().Contains("vroid") || parent.name.ToLower().Contains("vrm"))
-                {
-                    break;
-                }
-                parent = parent.parent;
-            }
-
-            if (isPlayerChild)
-            {
-                renderer.enabled = false;
-                hiddenCount++;
-            }
+            // VRoidの子孫は除外
+            if (IsChildOf(renderer.transform, vroidModel.transform)) continue;
+            
+            renderer.enabled = false;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            hiddenCount++;
         }
 
-        // MeshRendererも同様に処理
         var meshRenderers = playerArmature.GetComponentsInChildren<MeshRenderer>(true);
         foreach (var renderer in meshRenderers)
         {
-            if (renderer.gameObject.name.ToLower().Contains("vroid") ||
-                renderer.gameObject.name.ToLower().Contains("vrm"))
-            {
-                continue;
-            }
-
-            Transform parent = renderer.transform.parent;
-            bool isPlayerChild = false;
-            while (parent != null)
-            {
-                if (parent == playerArmature.transform)
-                {
-                    isPlayerChild = true;
-                    break;
-                }
-                if (parent.name.ToLower().Contains("vroid") || parent.name.ToLower().Contains("vrm"))
-                {
-                    break;
-                }
-                parent = parent.parent;
-            }
-
-            if (isPlayerChild)
-            {
-                renderer.enabled = false;
-                hiddenCount++;
-            }
+            if (IsChildOf(renderer.transform, vroidModel.transform)) continue;
+            
+            renderer.enabled = false;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            hiddenCount++;
         }
 
-        if (hiddenCount > 0)
+        Debug.Log($"[GhostParent] {hiddenCount}個のRendererを完全非表示にしました");
+    }
+
+    private static bool IsChildOf(Transform child, Transform parent)
+    {
+        Transform t = child;
+        while (t != null)
         {
-            Debug.Log($"[GhostParent] {hiddenCount}個のRendererを非表示にしました");
+            if (t == parent) return true;
+            t = t.parent;
+        }
+        return false;
+    }
+
+    // ===== VRoidの表示を確実に有効化 =====
+    private static void EnsureVRoidVisible(GameObject vroidModel)
+    {
+        // GameObjectを有効化
+        vroidModel.SetActive(true);
+        
+        // Scaleを確認・修正
+        if (vroidModel.transform.localScale == Vector3.zero)
+        {
+            vroidModel.transform.localScale = Vector3.one;
+            Debug.Log("[GhostParent] VRoidのScaleを(1,1,1)に修正");
+        }
+
+        // 全てのRendererを有効化
+        var skinnedRenderers = vroidModel.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        int enabledCount = 0;
+        foreach (var renderer in skinnedRenderers)
+        {
+            renderer.enabled = true;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            enabledCount++;
+        }
+
+        var meshRenderers = vroidModel.GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var renderer in meshRenderers)
+        {
+            renderer.enabled = true;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            enabledCount++;
+        }
+
+        Debug.Log($"[GhostParent] VRoidの{enabledCount}個のRendererを有効化しました");
+    }
+
+    // ===== AnimationEventReceiver設定 =====
+    private static void SetupAnimationEventReceiver(GameObject vroidModel)
+    {
+        var receiverType = System.Type.GetType("AnimationEventReceiver, Assembly-CSharp");
+        if (receiverType != null)
+        {
+            var existing = vroidModel.GetComponent(receiverType);
+            if (existing == null)
+            {
+                vroidModel.AddComponent(receiverType);
+                Debug.Log("[GhostParent] AnimationEventReceiver を追加");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[GhostParent] AnimationEventReceiver スクリプトが見つかりません");
         }
     }
 
@@ -299,9 +327,31 @@ public class VRoidGhostParentSetup : EditorWindow
             Debug.LogWarning("[GhostParent] Starter Assets Animator Controller が見つかりません");
         }
 
-        // ロボット側のAnimatorは無効化（二重アニメーション防止）
-        // ただし、ThirdPersonControllerがAnimatorを参照するため、そのままにする
-        // playerAnimator.enabled = false; // 必要に応じてコメント解除
+    }
+
+    // ===== AnimatorSync設定 =====
+    private static void SetupAnimatorSync(GameObject playerArmature, GameObject vroidModel)
+    {
+        var syncType = System.Type.GetType("AnimatorSync, Assembly-CSharp");
+        if (syncType != null)
+        {
+            var existing = vroidModel.GetComponent(syncType);
+            if (existing == null)
+            {
+                var sync = vroidModel.AddComponent(syncType);
+                // sourceAnimatorを設定
+                var sourceField = syncType.GetField("sourceAnimator");
+                if (sourceField != null)
+                {
+                    sourceField.SetValue(sync, playerArmature.GetComponent<Animator>());
+                }
+                Debug.Log("[GhostParent] AnimatorSync を追加");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[GhostParent] AnimatorSync スクリプトが見つかりません");
+        }
     }
 
     // ===== 表情コントローラー =====
@@ -321,6 +371,30 @@ public class VRoidGhostParentSetup : EditorWindow
                 }
                 Debug.Log("[GhostParent] VRoidExpressionController を追加");
             }
+        }
+    }
+
+    // ===== 自動まばたき =====
+    private static void SetupAutoBlink(GameObject vroidModel)
+    {
+        var blinkType = System.Type.GetType("VRoidAutoBlink, Assembly-CSharp");
+        if (blinkType != null)
+        {
+            var existing = vroidModel.GetComponent(blinkType);
+            if (existing == null)
+            {
+                var blink = vroidModel.AddComponent(blinkType);
+                var vrmObjField = blinkType.GetField("vrmObject");
+                if (vrmObjField != null)
+                {
+                    vrmObjField.SetValue(blink, vroidModel);
+                }
+                Debug.Log("[GhostParent] VRoidAutoBlink を追加");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[GhostParent] VRoidAutoBlink スクリプトが見つかりません");
         }
     }
 
