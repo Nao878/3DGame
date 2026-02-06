@@ -1,48 +1,37 @@
 using UnityEngine;
 using UnityEditor;
-using StarterAssets;
-using System.Collections.Generic;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 /// <summary>
-/// VRoidモデルの最終セットアップツール
-/// 「Finalize VRoid Setup & Fix Errors」ボタン一つで全ての設定とエラー修正を実行
+/// VRoidモデルをPlayerArmatureの子にして、ロボットの外見を透明化する
+/// 「Ghost Parent」構造のセットアップツール
 /// </summary>
-public class VRoidFinalSetup : EditorWindow
+public class VRoidGhostParentSetup : EditorWindow
 {
-    // パス定義
-    private static readonly string PLAYER_FOLLOW_CAMERA_PREFAB = 
-        "Assets/StarterAssets/ThirdPersonController/Prefabs/PlayerFollowCamera.prefab";
-    private static readonly string STARTER_ASSETS_INPUT_ACTIONS = 
-        "Assets/StarterAssets/InputSystem/StarterAssets.inputactions";
+    private static readonly string STARTER_ASSETS_ANIMATOR_PATH = 
+        "Assets/StarterAssets/ThirdPersonController/Character/Animations/StarterAssetsThirdPerson.controller";
 
     [MenuItem("Tools/Finalize VRoid Setup && Fix Errors", priority = 1)]
-    public static void FinalizeVRoidSetup()
+    public static void SetupGhostParent()
     {
         Debug.Log("========================================");
-        Debug.Log("=== VRoid 最終セットアップ開始 ===");
+        Debug.Log("=== VRoid Ghost Parent セットアップ開始 ===");
         Debug.Log("========================================");
 
-        bool success = true;
-        List<string> completedTasks = new List<string>();
-        List<string> warnings = new List<string>();
-
-        // ステップ1: Input System設定
-        if (FixInputSystem())
+        // ステップ1: PlayerArmature（ロボット）を検索
+        GameObject playerArmature = FindPlayerArmature();
+        if (playerArmature == null)
         {
-            completedTasks.Add("Input System を 'Both' に設定");
+            EditorUtility.DisplayDialog(
+                "PlayerArmatureが見つかりません",
+                "シーン内にPlayerArmature（Starter Assetsのプレイヤー）が見つかりません。\n\nPlaygroundシーンを開いているか確認してください。",
+                "OK"
+            );
+            return;
         }
+        Debug.Log($"[GhostParent] PlayerArmature発見: {playerArmature.name}");
 
-        // ステップ2: glTFastインポーター競合解消
-        if (DisableGltfastImporter())
-        {
-            completedTasks.Add("glTFast .glbインポーターを無効化（UniGLTF優先）");
-        }
-
-        // ステップ3: VRoidモデル検索
-        GameObject vroidModel = FindVRoidModel();
+        // ステップ2: VRoidモデルを検索
+        GameObject vroidModel = FindVRoidModel(playerArmature);
         if (vroidModel == null)
         {
             EditorUtility.DisplayDialog(
@@ -52,145 +41,122 @@ public class VRoidFinalSetup : EditorWindow
             );
             return;
         }
-        completedTasks.Add($"VRoidモデル発見: {vroidModel.name}");
+        Debug.Log($"[GhostParent] VRoidモデル発見: {vroidModel.name}");
 
-        // ステップ4: 古いコンポーネント削除
-        RemoveOldComponents(vroidModel);
-        completedTasks.Add("古いコンポーネントを削除");
+        // ステップ3: VRoidを既にセットアップ済みか確認
+        bool alreadyChild = vroidModel.transform.parent == playerArmature.transform;
 
-        // ステップ5: Starter Assetsコンポーネント追加
-        if (SetupStarterAssetsComponents(vroidModel))
+        // ステップ4: VRoidをPlayerArmatureの子にする
+        if (!alreadyChild)
         {
-            completedTasks.Add("Starter Assetsコンポーネントを追加");
-        }
-        else
-        {
-            warnings.Add("一部のStarter Assetsコンポーネントの設定に問題がありました");
+            Undo.SetTransformParent(vroidModel.transform, playerArmature.transform, "VRoid Ghost Parent Setup");
+            vroidModel.transform.localPosition = Vector3.zero;
+            vroidModel.transform.localRotation = Quaternion.identity;
+            vroidModel.transform.localScale = Vector3.one;
+            Debug.Log("[GhostParent] VRoidをPlayerArmatureの子オブジェクトに設定");
         }
 
-        // ステップ6: カメラセットアップ
-        GameObject cameraTarget = SetupCameraTarget(vroidModel);
-        SetupCamera(vroidModel, cameraTarget);
-        completedTasks.Add("カメラをセットアップ");
+        // ステップ5: ロボットのメッシュを非表示
+        HideRobotMesh(playerArmature);
 
-        // ステップ7: 表情コントローラー追加
+        // ステップ6: Animator Controllerをコピー
+        SetupVRoidAnimator(playerArmature, vroidModel);
+
+        // ステップ7: 表情コントローラーを追加
         SetupExpressionController(vroidModel);
-        completedTasks.Add("表情コントローラーを追加");
 
-        // ステップ8: カーソルロック制御追加
-        SetupCursorController(vroidModel);
-        completedTasks.Add("カーソルロック制御を追加（ESCキー対応）");
-
-        // ステップ9: 地面レイヤー設定
-        SetupGroundLayer();
-        completedTasks.Add("地面レイヤーを設定");
+        // ステップ8: カーソルコントローラーを追加
+        SetupCursorController(playerArmature);
 
         // 保存
+        EditorUtility.SetDirty(playerArmature);
         EditorUtility.SetDirty(vroidModel);
-        AssetDatabase.SaveAssets();
 
-        // 結果表示
-        string message = "セットアップが完了しました！\n\n【完了項目】\n";
-        foreach (var task in completedTasks)
-        {
-            message += $"✓ {task}\n";
-        }
-        
-        if (warnings.Count > 0)
-        {
-            message += "\n【警告】\n";
-            foreach (var warning in warnings)
-            {
-                message += $"⚠ {warning}\n";
-            }
-        }
-
-        message += "\n【操作方法】\n";
+        string message = "Ghost Parentセットアップが完了しました！\n\n";
+        message += "【構造】\n";
+        message += $"PlayerArmature (親)\n";
+        message += $"  └ {vroidModel.name} (VRoid)\n\n";
+        message += "【動作確認】\n";
+        message += "• ゲームを再生してWASD移動を確認\n";
+        message += "• ロボットの見た目は非表示\n";
+        message += "• VRoidモデルがアニメーション付きで移動\n\n";
+        message += "【操作方法】\n";
         message += "WASD: 移動\n";
         message += "マウス: 視点操作\n";
         message += "Space: ジャンプ\n";
         message += "Shift: ダッシュ\n";
         message += "ESC: カーソルロック解除\n";
-        message += "1-5: 表情変更\n";
-        message += "\n※Input Systemが変更された場合はエディタを再起動してください。";
+        message += "1-5: 表情変更";
 
-        Debug.Log("=== VRoid 最終セットアップ完了 ===");
-        
+        Debug.Log("=== VRoid Ghost Parent セットアップ完了 ===");
         EditorUtility.DisplayDialog("セットアップ完了", message, "OK");
     }
 
-    // ===== Input System修正 =====
-    private static bool FixInputSystem()
+    // ===== PlayerArmature検索 =====
+    private static GameObject FindPlayerArmature()
     {
-        try
-        {
-            SerializedObject serializedSettings = new SerializedObject(
-                AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
-            SerializedProperty inputHandlingProp = serializedSettings.FindProperty("activeInputHandler");
-            
-            if (inputHandlingProp != null && inputHandlingProp.intValue != 2)
-            {
-                inputHandlingProp.intValue = 2; // Both
-                serializedSettings.ApplyModifiedProperties();
-                Debug.Log("[FinalSetup] Input System を 'Both' に設定しました");
-                return true;
-            }
-            return false;
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[FinalSetup] Input System設定エラー: {e.Message}");
-            return false;
-        }
-    }
+        // まず名前で検索
+        GameObject player = GameObject.Find("PlayerArmature");
+        if (player != null) return player;
 
-    // ===== glTFast無効化 =====
-    private static bool DisableGltfastImporter()
-    {
-        // glTFastの設定ファイルを探して.glbインポートを無効化
-        string[] guids = AssetDatabase.FindAssets("t:ScriptableObject GltfImportSettings");
-        
-        // glTFastがインストールされているか確認
-        var gltfastType = System.Type.GetType("GLTFast.GltfImport, glTFast");
-        if (gltfastType != null)
+        // ThirdPersonControllerを持つオブジェクトを検索
+        var tpcType = System.Type.GetType("StarterAssets.ThirdPersonController, Assembly-CSharp");
+        if (tpcType != null)
         {
-            Debug.Log("[FinalSetup] glTFastが検出されました。UniGLTFを優先するよう設定します。");
-            Debug.Log("[FinalSetup] ※glTFastの競合が続く場合は、Package ManagerからglTFastをアンインストールしてください。");
-            
-            // ScriptedImporterの優先度をログに出力
-            Debug.Log("[FinalSetup] 推奨: Edit > Project Settings > UniGLTF で設定を確認してください。");
-            return true;
+            var tpc = Object.FindObjectOfType(tpcType) as Component;
+            if (tpc != null)
+            {
+                return tpc.gameObject;
+            }
         }
-        
-        Debug.Log("[FinalSetup] glTFastは検出されませんでした（競合なし）");
-        return false;
+
+        // CharacterControllerを持つオブジェクトを検索
+        var characterControllers = Object.FindObjectsOfType<CharacterController>();
+        foreach (var cc in characterControllers)
+        {
+            // VRoidは除外
+            if (!cc.gameObject.name.ToLower().Contains("vroid") && 
+                !cc.gameObject.name.ToLower().Contains("vrm"))
+            {
+                return cc.gameObject;
+            }
+        }
+
+        return null;
     }
 
     // ===== VRoidモデル検索 =====
-    private static GameObject FindVRoidModel()
+    private static GameObject FindVRoidModel(GameObject excludeParent)
     {
+        // まず既にPlayerArmatureの子にいるかチェック
+        foreach (Transform child in excludeParent.transform)
+        {
+            if (IsVRoidModel(child.gameObject))
+            {
+                return child.gameObject;
+            }
+        }
+
         // Vrm10Instanceを持つオブジェクトを検索
         var vrm10Type = System.Type.GetType("UniVRM10.Vrm10Instance, VRM10");
         if (vrm10Type != null)
         {
             var instances = Object.FindObjectsOfType(vrm10Type);
-            if (instances.Length > 0)
+            foreach (var instance in instances)
             {
-                var component = instances[0] as Component;
-                if (component != null)
+                var component = instance as Component;
+                if (component != null && component.gameObject != excludeParent)
                 {
                     return component.gameObject;
                 }
             }
         }
 
-        // フォールバック
+        // フォールバック: 名前で検索
         var allObjects = Object.FindObjectsOfType<GameObject>();
         foreach (var obj in allObjects)
         {
-            string nameLower = obj.name.ToLower();
-            if ((nameLower.Contains("vroid") || nameLower.Contains("vrm") || nameLower.Contains("avatar")) 
-                && obj.GetComponent<Animator>() != null)
+            if (obj != excludeParent && IsVRoidModel(obj))
             {
                 return obj;
             }
@@ -199,244 +165,221 @@ public class VRoidFinalSetup : EditorWindow
         return null;
     }
 
-    // ===== 古いコンポーネント削除 =====
-    private static void RemoveOldComponents(GameObject vroidModel)
+    private static bool IsVRoidModel(GameObject obj)
     {
-        string[] oldComponentNames = new string[]
+        string nameLower = obj.name.ToLower();
+        if ((nameLower.Contains("vroid") || nameLower.Contains("vrm") || nameLower.Contains("avatar")) 
+            && obj.GetComponent<Animator>() != null)
         {
-            "VRoidCharacterController",
-            "VRoidBlinkController",
-            "UnityChanControlScriptWithRgidBody",
-            "AutoBlink",
-            "FaceUpdate",
-            "IdleChanger",
-            "RandomWind",
-            "SpringManager"
-        };
-
-        foreach (var name in oldComponentNames)
-        {
-            var component = vroidModel.GetComponent(name);
-            if (component != null)
-            {
-                Object.DestroyImmediate(component);
-                Debug.Log($"[FinalSetup] {name} を削除");
-            }
+            // PlayerArmatureは除外
+            if (obj.GetComponent<CharacterController>() != null) return false;
+            return true;
         }
-
-        // Rigidbody削除（CharacterController使用のため）
-        var rb = vroidModel.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            Object.DestroyImmediate(rb);
-            Debug.Log("[FinalSetup] Rigidbody を削除");
-        }
-
-        // CapsuleCollider削除
-        var col = vroidModel.GetComponent<CapsuleCollider>();
-        if (col != null)
-        {
-            Object.DestroyImmediate(col);
-            Debug.Log("[FinalSetup] CapsuleCollider を削除");
-        }
+        return false;
     }
 
-    // ===== Starter Assetsコンポーネント設定 =====
-    private static bool SetupStarterAssetsComponents(GameObject vroidModel)
+    // ===== ロボットメッシュ非表示 =====
+    private static void HideRobotMesh(GameObject playerArmature)
     {
-        bool success = true;
-
-        // CharacterController
-        var characterController = vroidModel.GetComponent<CharacterController>();
-        if (characterController == null)
+        // Geometryという名前の子オブジェクトを検索
+        Transform geometry = playerArmature.transform.Find("Geometry");
+        if (geometry != null)
         {
-            characterController = vroidModel.AddComponent<CharacterController>();
-        }
-        characterController.height = 1.6f;
-        characterController.radius = 0.25f;
-        characterController.center = new Vector3(0, 0.8f, 0);
-        characterController.minMoveDistance = 0;
-        characterController.skinWidth = 0.02f;
-        Debug.Log("[FinalSetup] CharacterController を設定");
-
-        // StarterAssetsInputs
-        var starterInputs = vroidModel.GetComponent<StarterAssetsInputs>();
-        if (starterInputs == null)
-        {
-            starterInputs = vroidModel.AddComponent<StarterAssetsInputs>();
-        }
-        starterInputs.cursorLocked = true;
-        starterInputs.cursorInputForLook = true;
-        Debug.Log("[FinalSetup] StarterAssetsInputs を設定");
-
-        // PlayerInput
-#if ENABLE_INPUT_SYSTEM
-        var playerInput = vroidModel.GetComponent<PlayerInput>();
-        if (playerInput == null)
-        {
-            playerInput = vroidModel.AddComponent<PlayerInput>();
-        }
-        
-        var inputActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(STARTER_ASSETS_INPUT_ACTIONS);
-        if (inputActions != null)
-        {
-            playerInput.actions = inputActions;
-            playerInput.defaultControlScheme = "KeyboardMouse";
-            playerInput.defaultActionMap = "Player";
-            playerInput.notificationBehavior = PlayerNotifications.InvokeUnityEvents;
-            Debug.Log("[FinalSetup] PlayerInput を設定");
-        }
-        else
-        {
-            Debug.LogWarning($"[FinalSetup] Input Actions が見つかりません: {STARTER_ASSETS_INPUT_ACTIONS}");
-            success = false;
-        }
-#endif
-
-        // ThirdPersonController
-        var tpc = vroidModel.GetComponent<ThirdPersonController>();
-        if (tpc == null)
-        {
-            tpc = vroidModel.AddComponent<ThirdPersonController>();
-        }
-        tpc.MoveSpeed = 2.0f;
-        tpc.SprintSpeed = 5.335f;
-        tpc.RotationSmoothTime = 0.12f;
-        tpc.SpeedChangeRate = 10.0f;
-        tpc.JumpHeight = 1.2f;
-        tpc.Gravity = -15.0f;
-        tpc.JumpTimeout = 0.5f;
-        tpc.FallTimeout = 0.15f;
-        tpc.GroundedOffset = -0.14f;
-        tpc.GroundedRadius = 0.28f;
-        tpc.TopClamp = 70.0f;
-        tpc.BottomClamp = -30.0f;
-        Debug.Log("[FinalSetup] ThirdPersonController を設定");
-
-        return success;
-    }
-
-    // ===== カメラターゲット設定 =====
-    private static GameObject SetupCameraTarget(GameObject vroidModel)
-    {
-        Transform existingTarget = vroidModel.transform.Find("PlayerCameraRoot");
-        if (existingTarget != null)
-        {
-            return existingTarget.gameObject;
-        }
-
-        GameObject cameraTarget = new GameObject("PlayerCameraRoot");
-        cameraTarget.transform.SetParent(vroidModel.transform);
-        cameraTarget.transform.localPosition = new Vector3(0, 1.5f, 0);
-        cameraTarget.transform.localRotation = Quaternion.identity;
-
-        var tpc = vroidModel.GetComponent<ThirdPersonController>();
-        if (tpc != null)
-        {
-            tpc.CinemachineCameraTarget = cameraTarget;
-        }
-
-        Debug.Log("[FinalSetup] PlayerCameraRoot を作成");
-        return cameraTarget;
-    }
-
-    // ===== カメラセットアップ =====
-    private static void SetupCamera(GameObject vroidModel, GameObject cameraTarget)
-    {
-        GameObject existingCamera = GameObject.Find("PlayerFollowCamera");
-        if (existingCamera != null)
-        {
-            ConfigureCinemachineCamera(existingCamera, cameraTarget.transform);
+            geometry.gameObject.SetActive(false);
+            Debug.Log("[GhostParent] Geometry を非表示にしました");
             return;
         }
 
-        GameObject cameraPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PLAYER_FOLLOW_CAMERA_PREFAB);
-        if (cameraPrefab != null)
+        // SkinnedMeshRendererを持つオブジェクトを検索して非表示
+        var renderers = playerArmature.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        int hiddenCount = 0;
+        foreach (var renderer in renderers)
         {
-            GameObject cameraInstance = (GameObject)PrefabUtility.InstantiatePrefab(cameraPrefab);
-            cameraInstance.name = "PlayerFollowCamera";
-            ConfigureCinemachineCamera(cameraInstance, cameraTarget.transform);
-            Debug.Log("[FinalSetup] PlayerFollowCamera を生成");
-        }
-        else
-        {
-            // MainCameraのフォールバック
-            var mainCamera = GameObject.FindWithTag("MainCamera");
-            if (mainCamera == null)
+            // VRoidのメッシュは除外
+            if (renderer.gameObject.name.ToLower().Contains("vroid") ||
+                renderer.gameObject.name.ToLower().Contains("vrm"))
             {
-                mainCamera = new GameObject("Main Camera");
-                mainCamera.tag = "MainCamera";
-                mainCamera.AddComponent<Camera>();
-                mainCamera.AddComponent<AudioListener>();
+                continue;
             }
-            Debug.Log("[FinalSetup] MainCamera を確認（Cinemachineプレハブが見つかりません）");
+
+            // PlayerArmatureの直接の子孫のみ対象
+            Transform parent = renderer.transform.parent;
+            bool isPlayerChild = false;
+            while (parent != null)
+            {
+                if (parent == playerArmature.transform)
+                {
+                    isPlayerChild = true;
+                    break;
+                }
+                // VRoidの子なら除外
+                if (parent.name.ToLower().Contains("vroid") || parent.name.ToLower().Contains("vrm"))
+                {
+                    break;
+                }
+                parent = parent.parent;
+            }
+
+            if (isPlayerChild)
+            {
+                renderer.enabled = false;
+                hiddenCount++;
+            }
+        }
+
+        // MeshRendererも同様に処理
+        var meshRenderers = playerArmature.GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var renderer in meshRenderers)
+        {
+            if (renderer.gameObject.name.ToLower().Contains("vroid") ||
+                renderer.gameObject.name.ToLower().Contains("vrm"))
+            {
+                continue;
+            }
+
+            Transform parent = renderer.transform.parent;
+            bool isPlayerChild = false;
+            while (parent != null)
+            {
+                if (parent == playerArmature.transform)
+                {
+                    isPlayerChild = true;
+                    break;
+                }
+                if (parent.name.ToLower().Contains("vroid") || parent.name.ToLower().Contains("vrm"))
+                {
+                    break;
+                }
+                parent = parent.parent;
+            }
+
+            if (isPlayerChild)
+            {
+                renderer.enabled = false;
+                hiddenCount++;
+            }
+        }
+
+        if (hiddenCount > 0)
+        {
+            Debug.Log($"[GhostParent] {hiddenCount}個のRendererを非表示にしました");
         }
     }
 
-    private static void ConfigureCinemachineCamera(GameObject cameraObj, Transform followTarget)
+    // ===== VRoid Animator設定 =====
+    private static void SetupVRoidAnimator(GameObject playerArmature, GameObject vroidModel)
     {
-        var vcamType = System.Type.GetType("Cinemachine.CinemachineVirtualCamera, Cinemachine") 
-                    ?? System.Type.GetType("Unity.Cinemachine.CinemachineCamera, Unity.Cinemachine");
+        var playerAnimator = playerArmature.GetComponent<Animator>();
+        var vroidAnimator = vroidModel.GetComponent<Animator>();
+
+        if (playerAnimator == null || vroidAnimator == null)
+        {
+            Debug.LogWarning("[GhostParent] Animatorが見つかりません");
+            return;
+        }
+
+        // ロボット側のAnimator Controllerを取得
+        RuntimeAnimatorController controller = playerAnimator.runtimeAnimatorController;
         
-        if (vcamType == null) return;
-
-        void ConfigureVcam(Component vcam)
+        if (controller == null)
         {
-            if (vcam == null) return;
-            var followProp = vcamType.GetProperty("Follow");
-            if (followProp != null) followProp.SetValue(vcam, followTarget);
-            var lookAtProp = vcamType.GetProperty("LookAt");
-            if (lookAtProp != null) lookAtProp.SetValue(vcam, followTarget);
+            // パスから読み込み
+            controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(STARTER_ASSETS_ANIMATOR_PATH);
         }
 
-        var vcam = cameraObj.GetComponent(vcamType);
-        ConfigureVcam(vcam);
-
-        foreach (Transform child in cameraObj.transform)
+        if (controller != null)
         {
-            var childVcam = child.GetComponent(vcamType);
-            ConfigureVcam(childVcam);
+            vroidAnimator.runtimeAnimatorController = controller;
+            vroidAnimator.applyRootMotion = false; // Root Motionは親のCharacterControllerが担当
+            
+            Debug.Log($"[GhostParent] VRoidに Animator Controller を設定: {controller.name}");
+        }
+        else
+        {
+            Debug.LogWarning("[GhostParent] Starter Assets Animator Controller が見つかりません");
         }
 
-        EditorUtility.SetDirty(cameraObj);
-        Debug.Log("[FinalSetup] Cinemachineカメラを設定");
+        // ロボット側のAnimatorは無効化（二重アニメーション防止）
+        // ただし、ThirdPersonControllerがAnimatorを参照するため、そのままにする
+        // playerAnimator.enabled = false; // 必要に応じてコメント解除
     }
 
     // ===== 表情コントローラー =====
     private static void SetupExpressionController(GameObject vroidModel)
     {
-        var existing = vroidModel.GetComponent<VRoidExpressionController>();
-        if (existing == null)
+        var expressionType = System.Type.GetType("VRoidExpressionController, Assembly-CSharp");
+        if (expressionType != null)
         {
-            var expression = vroidModel.AddComponent<VRoidExpressionController>();
-            expression.vrmObject = vroidModel;
-            Debug.Log("[FinalSetup] VRoidExpressionController を追加");
+            var existing = vroidModel.GetComponent(expressionType);
+            if (existing == null)
+            {
+                var expression = vroidModel.AddComponent(expressionType);
+                var vrmObjField = expressionType.GetField("vrmObject");
+                if (vrmObjField != null)
+                {
+                    vrmObjField.SetValue(expression, vroidModel);
+                }
+                Debug.Log("[GhostParent] VRoidExpressionController を追加");
+            }
         }
     }
 
     // ===== カーソルコントローラー =====
-    private static void SetupCursorController(GameObject vroidModel)
+    private static void SetupCursorController(GameObject playerArmature)
     {
-        var existing = vroidModel.GetComponent<CursorController>();
-        if (existing == null)
+        var cursorType = System.Type.GetType("CursorController, Assembly-CSharp");
+        if (cursorType != null)
         {
-            vroidModel.AddComponent<CursorController>();
-            Debug.Log("[FinalSetup] CursorController を追加");
+            var existing = playerArmature.GetComponent(cursorType);
+            if (existing == null)
+            {
+                playerArmature.AddComponent(cursorType);
+                Debug.Log("[GhostParent] CursorController を追加");
+            }
         }
     }
 
-    // ===== 地面レイヤー設定 =====
-    private static void SetupGroundLayer()
+    // ===== リセット機能 =====
+    [MenuItem("Tools/Reset VRoid Ghost Parent")]
+    public static void ResetGhostParent()
     {
-        var allTpc = Object.FindObjectsOfType<ThirdPersonController>();
-        foreach (var tpc in allTpc)
+        GameObject playerArmature = FindPlayerArmature();
+        if (playerArmature == null)
         {
-            if (tpc.GroundLayers == 0)
+            EditorUtility.DisplayDialog("エラー", "PlayerArmatureが見つかりません。", "OK");
+            return;
+        }
+
+        // VRoidモデルを親から外す
+        foreach (Transform child in playerArmature.transform)
+        {
+            if (IsVRoidModel(child.gameObject))
             {
-                tpc.GroundLayers = LayerMask.GetMask("Default");
-                EditorUtility.SetDirty(tpc);
+                Undo.SetTransformParent(child, null, "Reset VRoid Ghost Parent");
+                child.position = playerArmature.transform.position + Vector3.right * 2;
+                Debug.Log($"[GhostParent] {child.name} を親から解除");
             }
         }
-        Debug.Log("[FinalSetup] 地面レイヤーを設定");
+
+        // ロボットメッシュを再表示
+        Transform geometry = playerArmature.transform.Find("Geometry");
+        if (geometry != null)
+        {
+            geometry.gameObject.SetActive(true);
+        }
+
+        var renderers = playerArmature.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var renderer in renderers)
+        {
+            renderer.enabled = true;
+        }
+
+        var meshRenderers = playerArmature.GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var renderer in meshRenderers)
+        {
+            renderer.enabled = true;
+        }
+
+        EditorUtility.DisplayDialog("リセット完了", "Ghost Parent構造をリセットしました。", "OK");
     }
 }
