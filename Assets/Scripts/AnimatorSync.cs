@@ -22,6 +22,10 @@ public class AnimatorSync : MonoBehaviour
     private int groundedHash;
     private int jumpHash;
     private int freeFallHash;
+    private int attackHash;
+
+    // Attack同期用
+    private bool hasAttackParam = false;
 
     void Start()
     {
@@ -66,8 +70,19 @@ public class AnimatorSync : MonoBehaviour
         groundedHash = Animator.StringToHash("Grounded");
         jumpHash = Animator.StringToHash("Jump");
         freeFallHash = Animator.StringToHash("FreeFall");
+        attackHash = Animator.StringToHash("Attack");
 
-        Debug.Log($"[AnimatorSync] 同期開始: {sourceAnimator.gameObject.name} → {targetAnimator.gameObject.name}");
+        // Attackパラメータが存在するか確認
+        foreach (var param in sourceAnimator.parameters)
+        {
+            if (param.name == "Attack")
+            {
+                hasAttackParam = true;
+                break;
+            }
+        }
+
+        Debug.Log($"[AnimatorSync] 同期開始: {sourceAnimator.gameObject.name} → {targetAnimator.gameObject.name} (Attack={hasAttackParam})");
     }
 
     void Update()
@@ -94,6 +109,20 @@ public class AnimatorSync : MonoBehaviour
         targetAnimator.SetBool(groundedHash, grounded);
         targetAnimator.SetBool(jumpHash, jump);
         targetAnimator.SetBool(freeFallHash, freeFall);
+
+        // Attackトリガーの同期
+        if (hasAttackParam)
+        {
+            // AnimatorStateInfoで攻撃中かどうかを判定
+            var sourceInfo = sourceAnimator.GetCurrentAnimatorStateInfo(0);
+            var targetInfo = targetAnimator.GetCurrentAnimatorStateInfo(0);
+            
+            // 親が攻撃ステートに入ったら子にもトリガー
+            if (sourceInfo.IsName("Attack") && !targetInfo.IsName("Attack"))
+            {
+                targetAnimator.SetTrigger(attackHash);
+            }
+        }
 
         if (showDebugLog)
         {

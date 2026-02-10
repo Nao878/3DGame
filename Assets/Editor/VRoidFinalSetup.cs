@@ -65,19 +65,25 @@ public class VRoidGhostParentSetup : EditorWindow
         // ステップ7: Animator Controllerをコピー
         SetupVRoidAnimator(playerArmature, vroidModel);
 
-        // ステップ8: AnimatorSyncを追加（パラメータ同期）
+        // ステップ8: Animator Controllerに攻撃ステートを追加
+        AttackAnimatorSetup.SetupAttackState();
+
+        // ステップ9: AnimatorSyncを追加（パラメータ同期）
         SetupAnimatorSync(playerArmature, vroidModel);
 
-        // ステップ9: AnimationEventReceiverを追加（警告解消）
+        // ステップ10: AnimationEventReceiverを追加（警告解消）
         SetupAnimationEventReceiver(vroidModel);
 
-        // ステップ10: 表情コントローラーを追加
+        // ステップ11: 攻撃コントローラーを追加
+        SetupAttackController(vroidModel);
+
+        // ステップ12: 表情コントローラーを追加
         SetupExpressionController(vroidModel);
 
-        // ステップ11: 自動まばたきを追加
+        // ステップ13: 自動まばたきを追加
         SetupAutoBlink(vroidModel);
 
-        // ステップ12: カーソルコントローラーを追加
+        // ステップ14: カーソルコントローラーを追加
         SetupCursorController(playerArmature);
 
         // 保存
@@ -88,17 +94,15 @@ public class VRoidGhostParentSetup : EditorWindow
         message += "【構造】\n";
         message += $"PlayerArmature (親)\n";
         message += $"  └ {vroidModel.name} (VRoid)\n\n";
-        message += "【動作確認】\n";
-        message += "• ゲームを再生してWASD移動を確認\n";
-        message += "• ロボットの見た目は非表示\n";
-        message += "• VRoidモデルがアニメーション付きで移動\n\n";
         message += "【操作方法】\n";
         message += "WASD: 移動\n";
         message += "マウス: 視点操作\n";
         message += "Space: ジャンプ\n";
         message += "Shift: ダッシュ\n";
-        message += "ESC: カーソルロック解除\n";
-        message += "1-5: 表情変更";
+        message += "左クリック/E: 攻撃\n";
+        message += "1-5: 表情変更\n";
+        message += "0: 表情リセット\n";
+        message += "ESC: カーソルロック解除";
 
         Debug.Log("=== VRoid Ghost Parent セットアップ完了 ===");
         EditorUtility.DisplayDialog("セットアップ完了", message, "OK");
@@ -371,6 +375,25 @@ public class VRoidGhostParentSetup : EditorWindow
                 }
                 Debug.Log("[GhostParent] VRoidExpressionController を追加");
             }
+        }
+    }
+
+    // ===== 攻撃コントローラー =====
+    private static void SetupAttackController(GameObject vroidModel)
+    {
+        var attackType = System.Type.GetType("VRoidAttackController, Assembly-CSharp");
+        if (attackType != null)
+        {
+            var existing = vroidModel.GetComponent(attackType);
+            if (existing == null)
+            {
+                vroidModel.AddComponent(attackType);
+                Debug.Log("[GhostParent] VRoidAttackController を追加");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[GhostParent] VRoidAttackController スクリプトが見つかりません");
         }
     }
 
